@@ -1,21 +1,16 @@
+import streamlit as st
 import numpy as np
 import pandas as pd
 
-# Read the dataset
-data = pd.read_csv("ex2/dataset.csv")
-
-# Create DataFrame
-df = pd.DataFrame(data)
-
 class Node:
-    def __init__(self, feature=None, value=None, result=None):
+    def _init_(self, feature=None, value=None, result=None):
         self.feature = feature
         self.value = value
         self.result = result
         self.children = {}
 
 class DecisionTreeID3:
-    def __init__(self):
+    def _init_(self):
         self.root = None
 
     def entropy(self, data):
@@ -68,12 +63,25 @@ class DecisionTreeID3:
             predictions.append(result)
         return predictions
 
-# Initialize the DecisionTreeID3 model
-model = DecisionTreeID3()
+def main():
+    st.title("Decision Tree ID3 with Streamlit")
 
-# Train the model
-model.fit(df, 'PlayTennis')
+    # Read the dataset
+    data = pd.read_csv("ex2/dataset.csv")
 
-# Make predictions
-predictions = model.predict(df)
-print(predictions)
+    # Create DataFrame
+    df = pd.DataFrame(data)
+
+    # Initialize the DecisionTreeID3 model
+    model = DecisionTreeID3()
+
+    # Train the model
+    model.fit(df, 'PlayTennis')
+
+    # Make predictions
+    predictions = model.predict(df)
+
+    st.write("Predictions:", predictions)
+
+if _name_ == "_main_":
+    main()
