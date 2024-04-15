@@ -66,22 +66,25 @@ class DecisionTreeID3:
 def main():
     st.title("Decision Tree ID3 with Streamlit")
 
-    # Read the dataset
-    data = pd.read_csv("ex2/dataset.csv")
+    # Upload dataset file
+    uploaded_file = st.file_uploader("Upload Dataset", type=["csv"])
+    if uploaded_file is not None:
+        # Read the dataset
+        data = pd.read_csv(uploaded_file)
 
-    # Create DataFrame
-    df = pd.DataFrame(data)
+        # Create DataFrame
+        df = pd.DataFrame(data)
 
-    # Initialize the DecisionTreeID3 model
-    model = DecisionTreeID3()
+        # Initialize the DecisionTreeID3 model
+        model = DecisionTreeID3()
 
-    # Train the model
-    model.fit(df, 'PlayTennis')
+        # Train the model
+        model.fit(df, 'PlayTennis')
 
-    # Make predictions
-    predictions = model.predict(df)
+        # Make predictions
+        predictions = model.predict(df)
 
-    st.write("Predictions:", predictions)
+        st.write("Predictions:", predictions)
 
 if _name_ == "_main_":
     main()
