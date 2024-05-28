@@ -1,18 +1,42 @@
-from sklearn.datasets import load_iris
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.model_selection import train_test_split
 import numpy as np
 
-dataset=load_iris()
-#print(dataset)
-X_train,X_test,y_train,y_test=train_test_split(dataset["data"],dataset["target"],random_state=0)
+# Define the features (sepal length, sepal width, petal length, petal width)
+features = np.array([
+    [5.1, 3.5, 1.4, 0.2],
+    [4.9, 3.0, 1.4, 0.2],
+    [4.7, 3.2, 1.3, 0.2],
+    [4.6, 3.1, 1.5, 0.2],
+    [5.0, 3.6, 1.4, 0.2],
+    [5.4, 3.9, 1.7, 0.4],
+    [4.6, 3.4, 1.4, 0.3],
+    [5.0, 3.4, 1.5, 0.2],
+    [4.4, 2.9, 1.4, 0.2],
+    [4.9, 3.1, 1.5, 0.1],
+    [5.4, 3.7, 1.5, 0.2],
+    [4.8, 3.4, 1.6, 0.2],
+    [4.8, 3.0, 1.4, 0.1],
+    [4.3, 3.0, 1.1, 0.1],
+    [5.8, 4.0, 1.2, 0.2]
+])
 
-kn=KNeighborsClassifier(n_neighbors=1)
-kn.fit(X_train,y_train)
+# Define the target labels (0: setosa, 1: versicolor, 2: virginica)
+targets = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
 
-for i in range(len(X_test)):
-    x=X_test[i]
-    x_new=np.array([x])
-    prediction=kn.predict(x_new)
-    print("TARGET=",y_test[i],dataset["target_names"][y_test[i]],"PREDICTED=",prediction,dataset["target_names"][prediction])
-print(kn.score(X_test,y_test))
+# Define the target names
+target_names = np.array(['setosa'])
+
+# Combine features and targets into a dictionary similar to the Iris dataset
+iris_dataset = {
+    'data': features,
+    'target': targets,
+    'target_names': target_names,
+    'feature_names': ['sepal length (cm)', 'sepal width (cm)', 'petal length (cm)', 'petal width (cm)']
+}
+
+# Printing a sample of the dataset
+print("Sample of the Iris dataset:")
+for i in range(5):
+    print(f"Sample {i+1}:")
+    print("  Features:", iris_dataset['data'][i])
+    print("  Target:", iris_dataset['target'][i], "(", iris_dataset['target_names'][iris_dataset['target'][i]], ")")
+    print()
