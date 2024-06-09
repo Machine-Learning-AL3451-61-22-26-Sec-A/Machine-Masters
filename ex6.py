@@ -23,7 +23,7 @@ if uploaded_file is not None:
     # Instantiate Bayesian Network
     bayesian_network = BayesianNetwork(data)
     
-    # Streamlit app
+    # Streamlit app title
     st.title('Corona Infection Diagnosis')
 
     # User input for symptoms
@@ -36,4 +36,6 @@ if uploaded_file is not None:
         diagnosis = bayesian_network.predict(symptoms)
         st.write(f'The diagnosis based on the symptoms is: {"Positive" if diagnosis == 1 else "Negative"}')
 else:
+    st.write("22AIA-MACHINE MASTERS")
+    st.title('Corona Infection Diagnosis')
     st.write("Please upload a CSV file.")
