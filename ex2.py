@@ -64,6 +64,7 @@ class DecisionTreeID3:
         return predictions
 
 def main():
+    st.write("22AIA-MACHINE MASTERS")
     st.title("Decision Tree ID3 with Streamlit")
 
     # Upload dataset file
