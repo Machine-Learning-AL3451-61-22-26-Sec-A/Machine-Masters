@@ -31,6 +31,9 @@ class NaiveBayesClassifier:
 def main():
     st.title("Tennis Data Classifier")
 
+    # Team name
+    team_name = "Machine Master"
+
     # File upload
     uploaded_file = st.file_uploader("Upload CSV file", type=['csv'])
 
@@ -79,7 +82,7 @@ def main():
             st.write(report)
 
             # Display team name
-            st.write("Team Name: Machine Master")
+            st.write(f"Team Name: {team_name}")
 
         except Exception as e:
             st.error(f"An error occurred: {e}")
