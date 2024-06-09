@@ -14,8 +14,8 @@ class DecisionTreeID3:
         self.root = None
 
     def entropy(self, data):
-        counts = np.unique(data, return_counts=True)
-        probabilities = counts[1] / len(data)  # counts[1] contains the counts of unique values
+        _, counts = np.unique(data, return_counts=True)
+        probabilities = counts / len(data)
         return -np.sum(probabilities * np.log2(probabilities))
 
     def information_gain(self, data, feature_name, target_name):
@@ -61,7 +61,7 @@ class DecisionTreeID3:
 
 def main():
     st.write("22AIA-MACHINE MASTERS")
-    st.title("Decision Tree ID3 with Streamlit")
+    st.title("Decision Tree ID3 Classifier")
 
     # Upload dataset file
     uploaded_file = st.file_uploader("Upload Dataset", type=["csv"])
@@ -69,15 +69,30 @@ def main():
         # Read the dataset
         data = pd.read_csv(uploaded_file)
 
+        # Display dataset
+        st.write("Dataset:")
+        st.write(data)
+
+        # Select target column
+        target_column = st.selectbox("Select Target Column", data.columns)
+
         # Initialize the DecisionTreeID3 model
         model = DecisionTreeID3()
 
         # Train the model
-        model.fit(data, 'PlayTennis')
+        model.fit(data, target_column)
 
         # Make predictions
-        predictions = model.predict(data)
-        st.write("Predictions:", predictions)
+        new_sample = {}
+        st.sidebar.markdown("## New Sample")
+        for feature in data.columns:
+            if feature != target_column:
+                new_sample[feature] = st.sidebar.text_input(feature, "")
+
+        if st.sidebar.button("Predict"):
+            new_data = pd.DataFrame([new_sample])
+            prediction = model.predict(new_data)
+            st.write("Prediction:", prediction[0])
 
 if __name__ == "__main__":
     main()
