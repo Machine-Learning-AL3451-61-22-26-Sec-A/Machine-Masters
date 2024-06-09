@@ -3,18 +3,18 @@ import numpy as np
 import pandas as pd
 
 class Node:
-    def _init_(self, feature=None, value=None, result=None):
+    def __init__(self, feature=None, value=None, result=None):
         self.feature = feature
         self.value = value
         self.result = result
         self.children = {}
 
 class DecisionTreeID3:
-    def _init_(self):
+    def __init__(self):
         self.root = None
 
     def entropy(self, data):
-        _, counts = np.unique(data, return_counts=True)
+        counts = np.unique(data, return_counts=True)
         probabilities = counts / len(data)
         return -np.sum(probabilities * np.log2(probabilities))
 
@@ -32,16 +32,12 @@ class DecisionTreeID3:
             return None
         if len(data[target_name].unique()) == 1:
             return Node(result=data[target_name].iloc[0])
-
         information_gains = [(feature, self.information_gain(data, feature, target_name)) for feature in features]
         best_feature, _ = max(information_gains, key=lambda x: x[1])
-
         root = Node(feature=best_feature)
-
         for value in data[best_feature].unique():
             subset = data[data[best_feature] == value]
             root.children[value] = self.build_tree(subset, [f for f in features if f != best_feature], target_name)
-
         return root
 
     def fit(self, data, target_name):
@@ -64,7 +60,6 @@ class DecisionTreeID3:
         return predictions
 
 def main():
-    st.write("22AIA-MACHINE MASTERS")
     st.title("Decision Tree ID3 with Streamlit")
 
     # Upload dataset file
@@ -84,8 +79,7 @@ def main():
 
         # Make predictions
         predictions = model.predict(df)
-
         st.write("Predictions:", predictions)
 
-if _name_ == "_main_":
-    main()
+if __name__ == "__main__":
+    main()
