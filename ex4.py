@@ -29,9 +29,10 @@ class NaiveBayesClassifier:
         return posterior + np.log(prior)
 
 def main():
-    st.title("Machine Masters")
     st.title("Tennis Data Classifier")
 
+    # Team name input
+    team_name = st.text_input("Enter the name of your tennis team:")
 
     # File upload
     uploaded_file = st.file_uploader("Upload CSV file", type=['csv'])
@@ -67,6 +68,23 @@ def main():
             accuracy = np.mean(y_pred == y_test.to_numpy())
 
             st.write(f"Accuracy: {accuracy:.2f}")
+
+            # Show confusion matrix
+            from sklearn.metrics import confusion_matrix
+            confusion = confusion_matrix(y_test, y_pred)
+            st.write("Confusion Matrix:")
+            st.write(confusion)
+
+            # Show classification report
+            from sklearn.metrics import classification_report
+            report = classification_report(y_test, y_pred, target_names=['Class 0', 'Class 1'])
+            st.write("Classification Report:")
+            st.write(report)
+
+            # Display team name
+            if team_name:
+                st.write(f"Team Name: {Machine Masters}")
+
         except Exception as e:
             st.error(f"An error occurred: {e}")
 
