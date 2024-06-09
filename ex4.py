@@ -79,7 +79,7 @@ def main():
             st.write(report)
 
             # Display team name
-            st.write(f"Team Name: Machine Master")
+            st.write("Team Name: Machine Master")
 
         except Exception as e:
             st.error(f"An error occurred: {e}")
