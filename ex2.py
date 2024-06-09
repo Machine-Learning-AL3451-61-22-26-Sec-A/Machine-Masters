@@ -1,3 +1,4 @@
+import streamlit as st
 import numpy as np
 import pandas as pd
 
@@ -59,21 +60,27 @@ class DecisionTreeID3:
         return predictions
 
 def main():
-    print("22AIA-MACHINE MASTERS")
-    print("Decision Tree ID3 Output")
+    st.write("22AIA-MACHINE MASTERS")
+    st.title("Decision Tree ID3 with Streamlit")
 
-    # Read the dataset
-    data = pd.read_csv("your_dataset.csv")  # Replace "your_dataset.csv" with your dataset filename
+    # Upload dataset file
+    uploaded_file = st.file_uploader("Upload Dataset", type=["csv"])
+    if uploaded_file is not None:
+        # Read the dataset
+        data = pd.read_csv(uploaded_file)
 
-    # Initialize the DecisionTreeID3 model
-    model = DecisionTreeID3()
+        # Create DataFrame
+        df = pd.DataFrame(data)
 
-    # Train the model
-    model.fit(data, 'PlayTennis')
+        # Initialize the DecisionTreeID3 model
+        model = DecisionTreeID3()
 
-    # Make predictions
-    predictions = model.predict(data)
-    print("Predictions:", predictions)
+        # Train the model
+        model.fit(df, 'PlayTennis')
+
+        # Make predictions
+        predictions = model.predict(df)
+        st.write("Predictions:", predictions)
 
 if __name__ == "__main__":
     main()
