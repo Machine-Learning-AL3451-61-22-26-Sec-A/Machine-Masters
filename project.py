@@ -2,12 +2,18 @@ import streamlit as st
 import pandas as pd
 from collections import Counter
 import math
+import string
 
 # Load dataset
 @st.cache
 def load_data():
     df = pd.read_csv('/content/drive/MyDrive/FDSA/DATASET/Movie_Review.csv')
     return df
+
+def preprocess_text(text):
+    # Remove punctuation and convert to lowercase
+    text = text.translate(str.maketrans('', '', string.punctuation)).lower()
+    return text
 
 def calculate_word_frequency(text):
     words = text.split()
@@ -38,11 +44,12 @@ def main():
     input_text = st.text_input('Enter a movie review:')
 
     if input_text:
+        input_text = preprocess_text(input_text)
         word_freq = calculate_word_frequency(input_text)
         tf = calculate_tf(word_freq)
 
         # Load all movie reviews
-        docs = df['text'].tolist()
+        docs = df['text'].apply(preprocess_text).tolist()
         idf = {word: calculate_idf(docs, word) for word in word_freq.keys()}
 
         # Calculate TF-IDF for the input text
