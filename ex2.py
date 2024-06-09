@@ -15,7 +15,7 @@ class DecisionTreeID3:
 
     def entropy(self, data):
         counts = np.unique(data, return_counts=True)
-        probabilities = counts / len(data)
+        probabilities = counts[1] / len(data)  # counts[1] contains the counts of unique values
         return -np.sum(probabilities * np.log2(probabilities))
 
     def information_gain(self, data, feature_name, target_name):
@@ -69,17 +69,14 @@ def main():
         # Read the dataset
         data = pd.read_csv(uploaded_file)
 
-        # Create DataFrame
-        df = pd.DataFrame(data)
-
         # Initialize the DecisionTreeID3 model
         model = DecisionTreeID3()
 
         # Train the model
-        model.fit(df, 'PlayTennis')
+        model.fit(data, 'PlayTennis')
 
         # Make predictions
-        predictions = model.predict(df)
+        predictions = model.predict(data)
         st.write("Predictions:", predictions)
 
 if __name__ == "__main__":
