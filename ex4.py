@@ -29,7 +29,7 @@ class NaiveBayesClassifier:
         return posterior + np.log(prior)
 
 def main():
-    st.title("MACHINE MASTERS")
+    st.title("Machine Masters")
     st.title("Tennis Data Classifier")
 
 
