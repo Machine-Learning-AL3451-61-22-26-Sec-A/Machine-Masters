@@ -1,3 +1,4 @@
+!pip install textblob
 
 # streamlit run TextSentimentApp.py
 
