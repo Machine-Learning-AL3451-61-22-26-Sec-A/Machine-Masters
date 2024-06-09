@@ -1,255 +1,315 @@
-!pip install textblob
-!pip install keras
+# -*- coding: utf-8 -*-
+# @Author: pranit
+# @Date:   2018-04-20 09:59:48
+# @Last Modified by:   pranit
+# @Last Modified time: 2018-05-17 02:16:39
 
-import streamlit as st
-import streamlit.components.v1 as components
+from time import time
+import ast
+import pickle
 import numpy as np
-import os
-import fnmatch
 import pandas as pd
-from textblob import TextBlob
-import keras
-from keras.preprocessing import sequence
-from keras.models import Sequential
-from keras.layers import Dense, Dropout, Activation, Embedding, Conv1D, GlobalMaxPooling1D, LSTM
-from keras.datasets import imdb
+import multiprocessing as mp
 
+from preprocessor import NltkPreprocessor
 
-def find(pattern, path):
-    result = []
-    for root, dirs, files in os.walk(path):
-        for name in files:
-            if fnmatch.fnmatch(name, pattern):
-                result.append(os.path.join(root, name))
-    return result
+from sklearn.model_selection import train_test_split
+from sklearn.model_selection import KFold
+from sklearn.feature_selection import SelectKBest, chi2
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.pipeline import Pipeline
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, confusion_matrix, classification_report
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import LinearSVC
+from sklearn.ensemble import RandomForestClassifier
 
+class SentimentAnalyzer:
 
-@st.cache
-def load_intermediate():
-    files = find("adam_acc_8643",  os.getcwd())
-    model = keras.models.load_model(files[0])
-    return model
+	def __init__(self):
+		self.clf = [
+			('MNB', MultinomialNB(alpha = 1.0, fit_prior = False)),
+			('LR', LogisticRegression(C = 5.0, penalty = 'l2', solver = 'liblinear', max_iter = 100, dual = True)),
+			('SVM', LinearSVC(C = 0.55, penalty = 'l2', max_iter = 1000, dual = True)),
+			('RF', RandomForestClassifier(n_jobs = -1, n_estimators = 100, min_samples_split = 40, max_depth = 90, min_samples_leaf = 3))
+		]
+		self.clf_names = ['Multinomial NB', 'Logistic Regression', 'Linear SVC', 'Random Forest']
 
+	def getInitialData(self, data_file, do_pickle):
+		print('Fetching initial data...')
+		t = time()
 
-def model_TextBlob(text_input):
-    blob = TextBlob(str(text_input))
-    return (blob.sentiment.polarity + 1) / 2
+		i = 0
+		df = {}
+		with open(data_file, 'r') as file_handler:
+			for review in file_handler.readlines():
+				df[i] = ast.literal_eval(review)
+				i += 1
 
+		reviews_df = pd.DataFrame.from_dict(df, orient = 'index')
+		if do_pickle:
+			reviews_df.to_pickle('pickled/product_reviews.pickle')
 
-def get_fixed_word_to_id_dict():
-    INDEX_FROM = 3   # word index offset
-    word_to_id = keras.datasets.imdb.get_word_index()
-    word_to_id = {k: (v+INDEX_FROM) for k, v in word_to_id.items()}
-    word_to_id[" "] = 0
-    word_to_id["<START>"] = 1
-    word_to_id["<UNK>"] = 2
-    return word_to_id
+		print('Fetching data completed!')
+		print('Fetching time: ', round(time()-t, 3), 's\n')
 
+	def preprocessData(self, reviews_df, do_pickle):
+		print('Preprocessing data...')
+		t = time()
 
-def encode_sentence(sent):
-    word_to_id = get_fixed_word_to_id_dict()
-    encoded = [word_to_id[w] if w in word_to_id else 2 for w in sent.split(" ")]
-    return encoded
+		reviews_df.drop(columns = ['reviewSummary'], inplace = True)
+		reviews_df['reviewRating'] = reviews_df.reviewRating.astype('int')
 
+		reviews_df = reviews_df[reviews_df.reviewRating != 3] # Ignoring 3-star reviews -> neutral
+		reviews_df = reviews_df.assign(sentiment = np.where(reviews_df['reviewRating'] >= 4, 1, 0)) # 1 -> Positive, 0 -> Negative
 
-def model_KerasIntermediate(text_input):
-    np_load_old = np.load
-    np.load = lambda *a, **k: np_load_old(*a, allow_pickle=True)
+		nltk_preprocessor = NltkPreprocessor()
 
-    model = load_intermediate()
+		with mp.Pool() as pool:
+			reviews_df = reviews_df.assign(cleaned = pool.map(nltk_preprocessor.tokenize, reviews_df['reviewText'])) # Parallel processing
+		
+		if do_pickle:
+			reviews_df.to_pickle('pickled/product_reviews_preprocessed.pickle')
 
-    test_sentences = []
-    test_sentence = str(text_input)
-    test_sentence = encode_sentence(test_sentence)
-    test_sentences.append(test_sentence)
-    test_sentences = sequence.pad_sequences(test_sentences, maxlen=400)
-    predictions = model.predict(test_sentences)
-    return predictions[0]
+		print('Preprocessing data completed!')
+		print('Preprocessing time: ', round(time()-t, 3), 's\n')
 
+	def trainTestSplit(self, reviews_df_preprocessed):
+		print('Splitting data using Train-Test split...')
+		t = time()
+		
+		X = reviews_df_preprocessed.iloc[:, -1].values
+		y = reviews_df_preprocessed.iloc[:, -2].values
 
-def predictor_page():
-    MODELS = {"Basic": model_TextBlob, "Intermediate": model_KerasIntermediate,
-              "Complex": model_KerasIntermediate}
+		X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2, random_state = 42, shuffle = True)
 
-    option = st.selectbox('Choose an NLP Model Complexity:', list(MODELS.keys()))
-    current_model = MODELS[option]
+		print('Splitting data completed!')
+		print('Splitting time: ', round(time()-t, 3), 's\n')
 
-    text_label = "Text to Analyze"
-    filled_text = "Enter your text here"
-    ip = st.text_input(text_label, filled_text)
+		return X_train, X_test, y_train, y_test
 
-    show_preds = False if ((ip == filled_text) or (ip == "")) else True
+	def kFoldSplit(self, reviews_df_preprocessed):
+		print('Splitting data using K-Fold Cross Validation...')
+		t = time()
+		
+		X = reviews_df_preprocessed.iloc[:, -1].values
+		y = reviews_df_preprocessed.iloc[:, -2].values
 
-    if (show_preds == True):
-        positivity_scale = current_model(ip)
-        result = ["Hate" if p <= 0.25 else "Demoralizing" if p <= 0.50 else "Appreciation" if p <= 0.75 else "Overwhelming"
-                  for p in positivity_scale]
-        result = str(result[0]) + " Speech"
-        st.success('Predicted Text Class : {}'.format(result))
-        latest_iteration = st.empty()
-        latest_iteration.text('Measured Positivity : ' + str(positivity_scale*100) + " %")
-        bar = st.progress(positivity_scale)
-        st.balloons()
+		kf = KFold(n_splits = 5, random_state = 42, shuffle = True)
+		train_test_indices = kf.split(X, y)
 
-    st.markdown("##### Note: High Complexity/Long Text Inputs may be computationally expensive and might lead to delayed processes & performance issues.")
+		print('Splitting data completed!')
+		print('Splitting time: ', round(time()-t, 3), 's\n')
 
+		return train_test_indices, X, y
 
-def about_page():
-    html_temp = """
-    <div style="background-color:#000000;padding:10px">
-    <h2 style="color:white;text-align:center;"><b>About the Project</b></h2>
-    </div>
-    """
-    st.markdown(html_temp, unsafe_allow_html=True)
+	def trainData(self, X_train, y_train, classifier, num_features = 1000000):
+		pipeline = []
+		model = []
 
-    img_top = """<br><center><img src="https://i.imgur.com/ncZTQzR.jpg" width="700px"></center>"""
-    
-    topic = """
-    <br>
-    'Text Sentiment Analysis' in 'Python' using 'Natural Language Processing (NLP)' for Negative/Positive Content Predictions.   
-    Deployed on the Cloud using 'Streamlit' on the 'Heroku' Platform.
-    
-    The primary objective of this project is to predict the positivity in a given text and to perform classification over the 
-    following speech categories :
-    - Overwhelming Speech
-    - Appreciation Speech
-    - Demoralizing Speech
-    - Hate Speech
-    ---
-    """
-    
-    topic2 = """
-    The project is a part of Winter of Code and it has been initiated by <a href="https://github.com/dsc-iem">DSC-IEM</a> .
-    The goal here is to use different Artificial Intelligence Algorithms for building the model and perform an in-depth exploratory analysis 
-    of the obtained results. Ideas to creating a user-friendly Web-Application and deploying it to the cloud is 
-    also an integral part of this Data Science Life Cycle Project. This website is an initial starter for the endless possibilities that 
-    this project encloses.
-    
-    <p style="color:blue;">If you liked this project don't forget to star our repository😄 ! It motivates us to create great Open Source Software !</p>
-     
-    
-    <br>
-    
-    [![ReadMe Card](https://github-readme-stats.vercel.app/api/pin/?username=khanfarhan10&repo=TextSentimentAnalysis&theme=dark)](https://github.com/khanfarhan10/TextSentimentAnalysis)
-    """
+		steps = [
+					('vect', TfidfVectorizer(ngram_range = (1,2), use_idf = True, sublinear_tf = True, lowercase = False, stop_words = None, preprocessor = None)),
+					('select_best', SelectKBest(score_func = chi2, k = num_features))
+				]
 
-    st.markdown(topic, unsafe_allow_html=True)
-    st.markdown(img_top, unsafe_allow_html=True)
-    st.markdown(topic2, unsafe_allow_html=True)
+		for name, clf in classifier:
+			steps.append(('clf', clf))
+			pl = Pipeline(steps)
+			pipeline.append(pl)
 
+			print('Training data... Classifier ' + str(name))
+			t = time()
 
-def collaborator_page():
-    json_file = get_simple_contribs()
-    repo = json_file
-    df = pd.DataFrame()
-    for each_contrib in repo:
-        Total_Commits = each_contrib["total"]
-        weeks = each_contrib["weeks"]
-        additions = 0
-        deletions = 0
-        for each_week in weeks:
-            additions += each_week["a"]
-            deletions += each_week["d"]
-        author_details = each_contrib["author"]
-        author_name = author_details["login"]
-        df = df.append({'name': author_name, 'commits': Total_Commits,
-                        'adds': additions, 'dels': deletions}, ignore_index=True)
+			model.append((name, pl.fit(X_train, y_train)))
 
-    df = df.astype(int, errors='ignore')
-    df = df.sort_values(by=['commits', 'adds'], ascending=False)
+			print('Training data completed!')
+			print('Training time: ', round(time()-t, 3), 's\n')
 
-    headings = """
-        <div style="background-color:#000000;padding:10px">
-        <h1 style="color:white;text-align:center;">Project Collaborators:</h1>
-        </div>
-        """
+			steps.pop()
 
-    html_temp = """
-    <div style="background-color:#000000;padding:10px">
-    <h2 style="color:white;text-align:center;"><b>Project Collaborators</b></h2>
-    </div>
-    """
-    st.markdown(html_temp, unsafe_allow_html=True)
+		return pipeline, model
 
-    odd = True if len(df) % 2 == 1 else False
+	def predictData(self, X_test, model):
+		prediction = []
 
-    first = """
-        <html>
-            <head>
-                
-            </head>
+		for name, m in model:
+			print('Predicting Test data... Classifier ' + str(name))
+			t = time()
 
-            <body>
-                <a>"""
+			prediction.append((name, m.predict(X_test)))
 
-    mid = """
-    <strong style="font-size:20px">
-                        <pre class="tab">{0} <a style="font-size:14px">{1} commits </a><a style="color: #2bff00;font-size:10px">{2}++ </a><a style="color: #FF0000;font-size:10px">{3}--</a>{8}{4} <a style="font-size:14px">{5} commits </a><a style="color: #2bff00;font-size:10px">{6}++ </a><a style="color: #FF0000;font-size:10px">{7}--</a></pre>
-                        <div class="github-card" data-github="{0}" data-width="350" data-height="150" data-theme="default"></div>
-                        <script src="//cdn.jsdelivr.net/github-cards/latest/widget.js"></script>
-                        <div class="github-card" data-github="{4}" data-width="350" data-height="" data-theme="default"></div>
-                        <script src="//cdn.jsdelivr.net/github-cards/latest/widget.js"></script>
-                    </strong> 
-    """
+			print('Prediction completed!')
+			print('Prediction time: ', round(time()-t, 3), 's\n')
 
-    end = """                
-            </body>
-        </html>
-        """
+		return prediction
 
-    text = """"""
-    text += first
+	def evaluate(self, y_test, prediction):
+		clf_accuracy = []
+		clf_precision = []
+		clf_recall = []
+		clf_f1 = []
+		clf_roc_auc = []
+		clf_cm = []
+		clf_cr = []
+		
+		for name, pred in prediction:
+			print('Evaluating results... Classifier ' + str(name))
+			t = time()
 
-    for i in range(0, len(df)-1, 2):
-        first_row = df.iloc[i, :]
-        second_row = df.iloc[i+1, :]
-        num_spaces = 47 - len(first_row["name"]) - len(second_row["name"]) - len(
-            str(first_row["commits"])) - len(str(second_row["commits"]))
-        num_spaces = num_spaces - len(str(first_row["adds"])) - \
-            len(str(second_row["adds"])) - \
-            len(str(first_row["dels"])) - len(str(second_row["dels"]))
-        num_spaces = 9 if num_spaces < 0 else num_spaces
-        spaces = " "*num_spaces
-        middle = mid.format(first_row["name"], first_row["commits"], first_row["adds"], first_row["dels"],
-                            second_row["name"], second_row["commits"], second_row["adds"], second_row["dels"], spaces)
-        text += middle
+			clf_accuracy.append(accuracy_score(y_test, pred))
+			clf_precision.append(precision_score(y_test, pred))
+			clf_recall.append(recall_score(y_test, pred))
+			clf_f1.append(f1_score(y_test, pred))
+			clf_roc_auc.append(roc_auc_score(y_test, pred))
+			clf_cm.append(confusion_matrix(y_test, pred))
+			clf_cr.append(classification_report(y_test, pred, target_names = ['negative', 'positive'], digits = 6))
 
-    text += end
+			print('Results evaluated!')
+			print('Evaluation time: ', round(time()-t, 3), 's\n')
 
-    if odd:
-        alone = """
-        <strong style="font-size:20px">
-                            <pre class="tab">{0} <a style="font-size:14px">{1} commits </a><a style="color: #2bff00;font-size:10px">{2}++ </a><a style="color: #FF0000;font-size:10px">{3}--</a></pre>
-                            <div class="github-card" data-github="{0}" data-width="350" data-height="150" data-theme="default"></div>
-                            <script src="//cdn.jsdelivr.net/github-cards/latest/widget.js"></script>
-                        </strong> 
-        """
-        last_row = df.iloc[len(df)-1, :]
-        text += alone.format(last_row["name"], last_row["commits"],
-                             last_row["adds"], last_row["dels"])
+		return clf_accuracy, clf_precision, clf_recall, clf_f1, clf_roc_auc, clf_cm, clf_cr
 
-    components.html(text, height=700, scrolling=True, width=800)
+	def holdoutStrategy(self, reviews_df_preprocessed, do_pickle, do_train_data):
+		print('\nHoldout Strategy...\n')
 
+		if do_train_data:
+			X_train, X_test, y_train, y_test = self.trainTestSplit(reviews_df_preprocessed)
+			pipeline, model = self.trainData(X_train, y_train, self.clf)
 
-def sidebar_nav():
-    html_img = """<center><img src="https://i.imgur.com/ncZTQzR.jpg" width="300px" ></center>"""
-    st.sidebar.markdown(html_img, unsafe_allow_html=True)
-    st.sidebar.markdown("""## Navigation Bar: <br> """, unsafe_allow_html=True)
-    current_page = st.sidebar.radio(
-        " ", ["Predictions",  "Project Collaborators", "About"])
+		if do_pickle:
+			with open('pickled/features_train.pickle', 'wb') as features_train:
+				pickle.dump(X_train, features_train)
+			with open('pickled/features_test.pickle', 'wb') as features_test:
+				pickle.dump(X_test, features_test)
+			with open('pickled/labels_train.pickle', 'wb') as labels_train:
+				pickle.dump(y_train, labels_train)
+			with open('pickled/labels_test.pickle', 'wb') as labels_test:
+				pickle.dump(y_test, labels_test)
+			with open('pickled/pipeline_holdout.pickle', 'wb') as pipeline_holdout:
+				pickle.dump(pipeline, pipeline_holdout)
+			with open('pickled/model_holdout.pickle', 'wb') as model_holdout:
+				pickle.dump(model, model_holdout)
 
-    sidetext = """
-    <br><br><br><br><br>Thank you for visiting this website🤗.  
-    We contribute towards open source :  
-    Feel free to visit [our github repository](https://github.com/khanfarhan10/TextSentimentAnalysis)
-    """
-    st.sidebar.markdown(sidetext, unsafe_allow_html=True)
+		with open('pickled/features_train.pickle', 'rb') as features_train:
+			X_train = pickle.load(features_train)
+		with open('pickled/features_test.pickle', 'rb') as features_test:
+			X_test = pickle.load(features_test)
+		with open('pickled/labels_train.pickle', 'rb') as labels_train:
+			y_train = pickle.load(labels_train)
+		with open('pickled/labels_test.pickle', 'rb') as labels_test:
+			y_test = pickle.load(labels_test)
+		with open('pickled/pipeline_holdout.pickle', 'rb') as pipeline_holdout:
+			pipeline = pickle.load(pipeline_holdout)
+		with open('pickled/model_holdout.pickle', 'rb') as model_holdout:
+			model = pickle.load(model_holdout)
 
-    all_pages = {"Predictions": predictor_page,
-                 "Project Collaborators": collaborator_page, "About": about_page}
+		prediction = self.predictData(X_test, model)
+		clf_accuracy, clf_precision, clf_recall, clf_f1, clf_roc_auc, clf_cm, clf_cr = self.evaluate(y_test, prediction)
 
-    func = all_pages[current_page]
-    func()
+		if do_pickle:
+			with open('pickled/metrics_cm_holdout.pickle', 'wb') as metrics_cm:
+				pickle.dump(clf_cm, metrics_cm)
+			with open('pickled/metrics_cr_holdout.pickle', 'wb') as metrics_cr:
+				pickle.dump(clf_cr, metrics_cr)
 
+		metrics_list = {
+			'Classifier': self.clf_names,
+			'Accuracy': clf_accuracy,
+			'Precision': clf_precision,
+			'Recall': clf_recall,
+			'F1-score': clf_f1,
+			'ROC AUC': clf_roc_auc
+		}
 
-sidebar_nav()
+		metrics_df = pd.DataFrame.from_dict(metrics_list)
+
+		for i in range(0, len(self.clf)):
+			if i == 0:
+				print('======================================================\n')
+			print('Evaluation metrics of Classifier ' + self.clf_names[i] + ':')
+			print('Confusion Matrix: \n{}\n'.format(clf_cm[i]))
+			print('Classification Report: \n{}'.format(clf_cr[i]))
+			print('======================================================\n')
+
+		print('Comparison of different metrics for the various Classifiers used:\n')
+		print(metrics_df)
+
+		if do_pickle:
+			with open('pickled/metrics_dataframe.pickle', 'wb') as df:
+				pickle.dump(metrics_df, df)
+
+	def crossValidationStrategy(self, reviews_df_preprocessed, do_pickle):
+		print('\nK-Fold Cross Validation Strategy...\n')
+
+		train_test_indices, X, y = self.kFoldSplit(reviews_df_preprocessed)
+
+		accuracy = []
+		precision = []
+		recall = []
+		f1 = []
+		roc_auc = []
+		cm = []
+
+		for i in range(0, len(self.clf)):
+			accuracy.append([])
+			precision.append([])
+			recall.append([])
+			f1.append([])
+			roc_auc.append([])
+			cm.append(np.zeros((2,2), dtype = 'int32'))
+
+		for train_idx, test_idx in train_test_indices:
+			X_train, y_train = X[train_idx], y[train_idx]
+			X_test, y_test = X[test_idx], y[test_idx]
+
+			_, model = self.trainData(X_train, y_train, self.clf)
+			prediction = self.predictData(X_test, model)
+			clf_accuracy, clf_precision, clf_recall, clf_f1, clf_roc_auc, clf_cm, _ = self.evaluate(y_test, prediction)
+
+			for j in range(0, len(self.clf)):
+				accuracy[j].append(clf_accuracy[j])
+				precision[j].append(clf_precision[j])
+				recall[j].append(clf_recall[j])
+				f1[j].append(clf_f1[j])
+				roc_auc[j].append(clf_roc_auc[j])
+				cm[j] += clf_cm[j]
+
+		acc = []
+		prec = []
+		rec = []
+		f1_score = []
+		auc = []
+		for i in range(0, len(self.clf)):
+			if i == 0:
+				print('======================================================\n')
+			print('Evaluation metrics of Classifier ' + self.clf_names[i] + ':')
+			print('Accuracy: {}'.format(np.mean(accuracy[i])))
+			print('Precision: {}'.format(np.mean(precision[i])))
+			print('Recall: {}'.format(np.mean(recall[i])))
+			print('F1-score: {}'.format(np.mean(f1[i])))
+			print('ROC AUC: {}'.format(np.mean(roc_auc[i])))
+			print('Confusion Matrix: \n{}\n'.format(cm[i]))
+			print('======================================================\n')
+			acc.append(np.mean(accuracy[i]))
+			prec.append(np.mean(precision[i]))
+			rec.append(np.mean(recall[i]))
+			f1_score.append(np.mean(f1[i]))
+			auc.append(np.mean(roc_auc[i]))
+
+		metrics_list = {
+			'Classifier': self.clf_names,
+			'Accuracy': clf_accuracy,
+			'Precision': clf_precision,
+			'Recall': clf_recall,
+			'F1-score': clf_f1,
+			'ROC AUC': clf_roc_auc
+		}
+
+		metrics_df = pd.DataFrame.from_dict(metrics_list)
+
+		print('Comparison of different metrics for the various Classifiers used:\n')
+		print(metrics_df)
+
+		if do_pickle:
+			with open('pickled/metrics_dataframe_kfold.pickle', 'wb') as df_kfold:
+				pickle.dump(metrics_df, df_kfold)
